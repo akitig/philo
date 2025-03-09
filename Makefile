@@ -6,19 +6,21 @@
 #    By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2025/03/09 14:59:44 by akunimot          #+#    #+#              #
-#    Updated: 2025/03/09 14:59:45 by akunimot         ###   ########.fr        #
+#    Updated: 2025/03/09 16:01:48 by akunimot         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 NAME         = philo
-CC           = cc
-CFLAGS       = -Wall -Wextra -Werror -g
+CC           = gcc
+CFLAGS       = -Wall -Wextra -Werror -g -fsanitize=address
 
 # ---------- srcs/objs ----------
 SRC_DIR      = ./srcs
 OBJ_DIR      = ./objs
 
-SRCS         = $(SRC_DIR)/main.c
+SRCS         = $(SRC_DIR)/main.c \
+				$(SRC_DIR)/ft_atoi.c \
+				$(SRC_DIR)/ft_is.c \
 
 OBJS         = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
