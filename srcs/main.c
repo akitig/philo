@@ -1,13 +1,6 @@
 /* ************************************************************************** */
 /*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   main.c                                             :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/03/09 14:59:40 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/09 22:54:49 by akunimot         ###   ########.fr       */
-/*                                                                            */
+/*                            Norm compliant version                          */
 /* ************************************************************************** */
 
 #include "../includes/philo.h"
@@ -17,25 +10,25 @@
 #include <unistd.h>
 
 /*
- * simulation_running:
- *    stop_mutex をロックして simulation_stop フラグを確認し、
- *    シミュレーションが継続中なら 1 を返す。
- */
+** simulation_running:
+**   Lock stop_mutex, check simulation_stop flag.
+*/
 static int	simulation_running(t_data *data)
 {
-	int	running;
-
 	pthread_mutex_lock(&data->stop_mutex);
-	running = !data->simulation_stop;
+	if (!data->simulation_stop)
+	{
+		pthread_mutex_unlock(&data->stop_mutex);
+		return (1);
+	}
 	pthread_mutex_unlock(&data->stop_mutex);
-	return (running);
+	return (0);
 }
 
 /*
- * safe_print:
- *    print_mutex をロックし、simulation_stop がセットされていなければ
- *    指定のフォーマットで出力する。
- */
+** safe_print:
+**   Lock print_mutex and print if simulation_stop is not set.
+*/
 void	safe_print(t_data *data, const char *format, long time, int id)
 {
 	int	stop;
@@ -50,9 +43,9 @@ void	safe_print(t_data *data, const char *format, long time, int id)
 }
 
 /*
- * safe_print_msg:
- *    単純なメッセージを出力する。
- */
+** safe_print_msg:
+**   Print a simple message if simulation_stop is not set.
+*/
 void	safe_print_msg(t_data *data, const char *msg)
 {
 	int	stop;
@@ -67,10 +60,9 @@ void	safe_print_msg(t_data *data, const char *msg)
 }
 
 /*
- * safe_sleep:
- *    指定されたミリ秒だけ、100µs ごとに simulation_stop をチェックしながら待機する。
- *    simulation_stop がセットされた場合、すぐに待機を中断する。
- */
+** safe_sleep:
+**   Sleep for msec while checking simulation_stop every 100µs.
+*/
 void	safe_sleep(long msec, t_data *data)
 {
 	long	start_time;
@@ -90,164 +82,260 @@ void	safe_sleep(long msec, t_data *data)
 }
 
 /*
- * try_lock:
- *    指定のミューテックスを、simulation_stop をチェックしながら trylock する。
- *    取得できたら 0 を返す。simulation_stop がセットされたら -1 を返す。
- */
+** try_lock_mutex:
+**   Try locking mutex while checking simulation_running.
+*/
 static int	try_lock_mutex(pthread_mutex_t *mutex, t_data *data)
 {
 	while (pthread_mutex_trylock(mutex) != 0)
 	{
 		if (!simulation_running(data))
 			return (-1);
-		usleep(50); // 50µs ごとに再試行
+		usleep(50);
 	}
 	return (0);
 }
 
-/* 哲学者スレッドのルーチン */
+/*
+** lock_and_print:
+**   Lock fork at given index and print message.
+*/
+static int	lock_and_print(t_philo *philo, int fork_index)
+{
+	long	time;
+
+	if (try_lock_mutex(&philo->data->forks[fork_index], philo->data) < 0)
+		return (-1);
+	time = get_now_ms(philo->data->start);
+	safe_print(philo->data, "%ld %d has taken a fork\n", time, philo->id);
+	return (0);
+}
+
+/*
+** lock_forks:
+**   Lock two forks based on philosopher id parity.
+*/
+static int	lock_forks(t_philo *philo, int left, int right)
+{
+	if (philo->id % 2 == 1)
+	{
+		if (lock_and_print(philo, left) < 0)
+			return (-1);
+		if (lock_and_print(philo, right) < 0)
+		{
+			pthread_mutex_unlock(&philo->data->forks[left]);
+			return (-1);
+		}
+	}
+	else
+	{
+		if (lock_and_print(philo, right) < 0)
+			return (-1);
+		if (lock_and_print(philo, left) < 0)
+		{
+			pthread_mutex_unlock(&philo->data->forks[right]);
+			return (-1);
+		}
+	}
+	return (0);
+}
+
+/*
+** update_meal:
+**   Update last_meal and set is_eating flag.
+*/
+static void	update_meal(t_philo *philo)
+{
+	pthread_mutex_lock(&philo->data->meal_mutex);
+	philo->last_meal = get_now_ms(philo->data->start);
+	philo->is_eating = 1;
+	pthread_mutex_unlock(&philo->data->meal_mutex);
+}
+
+/*
+** check_finished_count:
+**   Update finished_count and set simulation_stop if necessary.
+*/
+static void	check_finished_count(t_data *data)
+{
+	pthread_mutex_lock(&data->finish_mutex);
+	data->finished_count++;
+	if (data->finished_count == data->num_philos)
+	{
+		pthread_mutex_lock(&data->stop_mutex);
+		data->simulation_stop = 1;
+		pthread_mutex_unlock(&data->stop_mutex);
+	}
+	pthread_mutex_unlock(&data->finish_mutex);
+}
+
+/*
+** finish_eating:
+**   Reset is_eating, update eat_count, and unlock forks.
+*/
+static int	finish_eating(t_philo *philo, int left, int right)
+{
+	if (!simulation_running(philo->data))
+	{
+		pthread_mutex_unlock(&philo->data->forks[left]);
+		pthread_mutex_unlock(&philo->data->forks[right]);
+		return (-1);
+	}
+	pthread_mutex_lock(&philo->data->meal_mutex);
+	philo->is_eating = 0;
+	pthread_mutex_unlock(&philo->data->meal_mutex);
+	philo->eat_count++;
+	if (philo->data->num_times_eat > 0
+		&& philo->eat_count >= philo->data->num_times_eat)
+	{
+		check_finished_count(philo->data);
+	}
+	pthread_mutex_unlock(&philo->data->forks[left]);
+	pthread_mutex_unlock(&philo->data->forks[right]);
+	return (0);
+}
+
+/*
+** handle_single_philo:
+**   Special handling for one philosopher.
+*/
+static int	handle_single_philo(t_philo *philo)
+{
+	long	timestamp;
+
+	timestamp = get_now_ms(philo->data->start);
+	safe_print(philo->data, "%ld %d has taken a fork\n", timestamp, philo->id);
+	safe_sleep(philo->data->time_to_die, philo->data);
+	timestamp = get_now_ms(philo->data->start);
+	safe_print(philo->data, "%ld %d died\n", timestamp, philo->id);
+	pthread_mutex_lock(&philo->data->stop_mutex);
+	philo->data->simulation_stop = 1;
+	pthread_mutex_unlock(&philo->data->stop_mutex);
+	return (0);
+}
+
+/*
+** philosopher_iteration:
+**   One iteration of philosopher actions.
+*/
+static int	philosopher_iteration(t_philo *philo, int left, int right)
+{
+	long	timestamp;
+	t_data	*data;
+
+	data = philo->data;
+	timestamp = get_now_ms(data->start);
+	safe_print(data, "%ld %d is thinking\n", timestamp, philo->id);
+	if (lock_forks(philo, left, right) < 0)
+		return (-1);
+	update_meal(philo);
+	timestamp = get_now_ms(data->start);
+	safe_print(data, "%ld %d is eating\n", timestamp, philo->id);
+	safe_sleep(data->time_to_eat, data);
+	if (finish_eating(philo, left, right) < 0)
+		return (-1);
+	timestamp = get_now_ms(data->start);
+	safe_print(data, "%ld %d is sleeping\n", timestamp, philo->id);
+	safe_sleep(data->time_to_sleep, data);
+	return (0);
+}
+
+/*
+** philosopher_routine:
+**   Routine for each philosopher thread.
+*/
 void	*philosopher_routine(void *arg)
 {
 	t_philo	*philo;
 	t_data	*data;
-	long	timestamp;
+	int		left;
+	int		right;
 
 	philo = (t_philo *)arg;
 	data = philo->data;
-	int left, right;
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-	/* 偶数番号の哲学者は初期に短い遅延（例：200µs） */
 	if (philo->id % 2 == 0)
 		usleep(200);
 	if (data->num_philos == 1)
 	{
-		timestamp = get_now_ms(data->start);
-		safe_print(data, "%ld %d has taken a fork\n", timestamp, philo->id);
-		safe_sleep(data->time_to_die, data);
-		timestamp = get_now_ms(data->start);
-		safe_print(data, "%ld %d died\n", timestamp, philo->id);
-		pthread_mutex_lock(&data->stop_mutex);
-		data->simulation_stop = 1;
-		pthread_mutex_unlock(&data->stop_mutex);
+		handle_single_philo(philo);
 		return (NULL);
 	}
 	left = philo->id - 1;
 	right = philo->id % data->num_philos;
 	while (simulation_running(data))
 	{
-		timestamp = get_now_ms(data->start);
-		safe_print(data, "%ld %d is thinking\n", timestamp, philo->id);
-		if (philo->id % 2 == 1)
-		{
-			if (try_lock_mutex(&data->forks[left], data) < 0)
-				break ;
-			safe_print(data, "%ld %d has taken a fork\n",
-				get_now_ms(data->start), philo->id);
-			if (try_lock_mutex(&data->forks[right], data) < 0)
-			{
-				pthread_mutex_unlock(&data->forks[left]);
-				break ;
-			}
-			safe_print(data, "%ld %d has taken a fork\n",
-				get_now_ms(data->start), philo->id);
-		}
-		else
-		{
-			if (try_lock_mutex(&data->forks[right], data) < 0)
-				break ;
-			safe_print(data, "%ld %d has taken a fork\n",
-				get_now_ms(data->start), philo->id);
-			if (try_lock_mutex(&data->forks[left], data) < 0)
-			{
-				pthread_mutex_unlock(&data->forks[right]);
-				break ;
-			}
-			safe_print(data, "%ld %d has taken a fork\n",
-				get_now_ms(data->start), philo->id);
-		}
-		/* 食事開始直前に last_meal を更新し、is_eating を 1 に設定 */
-		pthread_mutex_lock(&data->meal_mutex);
-		philo->last_meal = get_now_ms(data->start);
-		philo->is_eating = 1;
-		pthread_mutex_unlock(&data->meal_mutex);
-		timestamp = get_now_ms(data->start);
-		safe_print(data, "%ld %d is eating\n", timestamp, philo->id);
-		safe_sleep(data->time_to_eat, data);
-		if (!simulation_running(data))
-		{
-			pthread_mutex_unlock(&data->forks[left]);
-			pthread_mutex_unlock(&data->forks[right]);
-			break ;
-		}
-		pthread_mutex_lock(&data->meal_mutex);
-		philo->is_eating = 0;
-		pthread_mutex_unlock(&data->meal_mutex);
-		philo->eat_count++;
-		if (data->num_times_eat > 0 && philo->eat_count >= data->num_times_eat)
-		{
-			pthread_mutex_lock(&data->finish_mutex);
-			data->finished_count++;
-			if (data->finished_count == data->num_philos)
-			{
-				pthread_mutex_lock(&data->stop_mutex);
-				data->simulation_stop = 1;
-				pthread_mutex_unlock(&data->stop_mutex);
-			}
-			pthread_mutex_unlock(&data->finish_mutex);
-		}
-		pthread_mutex_unlock(&data->forks[left]);
-		pthread_mutex_unlock(&data->forks[right]);
-		timestamp = get_now_ms(data->start);
-		safe_print(data, "%ld %d is sleeping\n", timestamp, philo->id);
-		safe_sleep(data->time_to_sleep, data);
-		if (!simulation_running(data))
+		if (philosopher_iteration(philo, left, right) < 0)
 			break ;
 	}
 	return (NULL);
 }
 
-/* モニタースレッド：各哲学者の死亡を監視 */
+/*
+** check_death:
+**   Check if any philosopher has died.
+*/
+static int	check_death(t_data *data, long current_time)
+{
+	int	i;
+
+	i = 0;
+	while (i < data->num_philos)
+	{
+		if (!data->philos[i].is_eating && (current_time
+				- data->philos[i].last_meal > data->time_to_die))
+		{
+			safe_print(data, "%ld %d died\n", current_time, data->philos[i].id);
+			return (1);
+		}
+		i++;
+	}
+	return (0);
+}
+
+/*
+** monitor_should_break:
+**   Check finish and stop conditions.
+*/
+static int	monitor_should_break(t_data *data)
+{
+	int	finished;
+
+	pthread_mutex_lock(&data->finish_mutex);
+	finished = (data->finished_count == data->num_philos);
+	pthread_mutex_unlock(&data->finish_mutex);
+	if (finished)
+		return (1);
+	pthread_mutex_lock(&data->stop_mutex);
+	if (data->simulation_stop)
+	{
+		pthread_mutex_unlock(&data->stop_mutex);
+		return (1);
+	}
+	pthread_mutex_unlock(&data->stop_mutex);
+	return (0);
+}
+
+/*
+** monitor_routine:
+**   Monitor thread to check philosopher status.
+*/
 void	*monitor_routine(void *arg)
 {
 	t_data	*data;
-	int		i;
 	long	current_time;
-	int		death_detected;
+	int		death;
 
 	data = (t_data *)arg;
-	death_detected = 0;
 	while (simulation_running(data))
 	{
-		pthread_mutex_lock(&data->finish_mutex);
-		if (data->finished_count == data->num_philos)
-		{
-			pthread_mutex_unlock(&data->finish_mutex);
+		if (monitor_should_break(data))
 			break ;
-		}
-		pthread_mutex_unlock(&data->finish_mutex);
-		pthread_mutex_lock(&data->stop_mutex);
-		if (data->simulation_stop)
-		{
-			pthread_mutex_unlock(&data->stop_mutex);
-			break ;
-		}
-		pthread_mutex_unlock(&data->stop_mutex);
-		death_detected = 0;
 		pthread_mutex_lock(&data->meal_mutex);
-		for (i = 0; i < data->num_philos; i++)
-		{
-			current_time = get_now_ms(data->start);
-			if (!data->philos[i].is_eating && (current_time
-					- data->philos[i].last_meal > data->time_to_die))
-			{
-				death_detected = 1;
-				safe_print(data, "%ld %d died\n", current_time,
-					data->philos[i].id);
-				break ;
-			}
-		}
+		current_time = get_now_ms(data->start);
+		death = check_death(data, current_time);
 		pthread_mutex_unlock(&data->meal_mutex);
-		if (death_detected)
+		if (death)
 		{
 			pthread_mutex_lock(&data->stop_mutex);
 			data->simulation_stop = 1;
@@ -259,45 +347,41 @@ void	*monitor_routine(void *arg)
 	return (NULL);
 }
 
-/* 各哲学者のスレッドおよびモニタースレッドの生成 */
-void	create_philos_threads(t_data *data)
+/*
+** create_single_philo:
+**   Create thread for a single philosopher.
+*/
+static void	create_single_philo(t_data *data)
 {
-	pthread_t	*threads;
-	pthread_t	monitor;
-	int			i;
 	pthread_t	thread;
 
-	if (data->num_philos == 1)
-	{
-		data->philos = malloc(sizeof(t_philo));
-		if (!data->philos)
-			return ;
-		data->philos[0].id = 1;
-		data->philos[0].eat_count = 0;
-		data->philos[0].is_eating = 0;
-		data->philos[0].data = data;
-		pthread_mutex_lock(&data->meal_mutex);
-		data->philos[0].last_meal = 0;
-		pthread_mutex_unlock(&data->meal_mutex);
-		{
-			if (pthread_create(&thread, NULL, philosopher_routine,
-					(void *)&data->philos[0]) != 0)
-				safe_print_msg(data, "pthread_create failed");
-			pthread_join(thread, NULL);
-		}
-		free(data->philos);
-		return ;
-	}
-	data->philos = malloc(sizeof(t_philo) * data->num_philos);
+	data->philos = malloc(sizeof(t_philo));
 	if (!data->philos)
 		return ;
-	threads = malloc(sizeof(pthread_t) * data->num_philos);
-	if (!threads)
-	{
-		free(data->philos);
-		return ;
-	}
-	for (i = 0; i < data->num_philos; i++)
+	data->philos[0].id = 1;
+	data->philos[0].eat_count = 0;
+	data->philos[0].is_eating = 0;
+	data->philos[0].data = data;
+	pthread_mutex_lock(&data->meal_mutex);
+	data->philos[0].last_meal = 0;
+	pthread_mutex_unlock(&data->meal_mutex);
+	if (pthread_create(&thread, NULL, philosopher_routine,
+			(void *)&data->philos[0]) != 0)
+		safe_print_msg(data, "pthread_create failed");
+	pthread_join(thread, NULL);
+	free(data->philos);
+}
+
+/*
+** create_philo_threads_loop:
+**   Loop to create philosopher threads.
+*/
+static void	create_philo_threads_loop(t_data *data, pthread_t *threads)
+{
+	int	i;
+
+	i = 0;
+	while (i < data->num_philos)
 	{
 		data->philos[i].id = i + 1;
 		data->philos[i].eat_count = 0;
@@ -309,42 +393,107 @@ void	create_philos_threads(t_data *data)
 		if (pthread_create(&threads[i], NULL, philosopher_routine,
 				(void *)&data->philos[i]) != 0)
 			safe_print_msg(data, "pthread_create failed");
+		i++;
 	}
+}
+
+/*
+** create_multiple_philos:
+**   Create threads for multiple philosophers.
+*/
+static void	create_philo_threads(t_data *data, pthread_t *threads)
+{
+	create_philo_threads_loop(data, threads);
+}
+
+static void	join_philo_threads(t_data *data, pthread_t *threads)
+{
+	int	i;
+
+	i = 0;
+	while (i < data->num_philos)
+	{
+		pthread_join(threads[i], NULL);
+		i++;
+	}
+}
+
+static void	create_multiple_philos(t_data *data)
+{
+	pthread_t	*threads;
+	pthread_t	monitor;
+
+	/* Allocate philosopher array for multiple philosophers */
+	data->philos = malloc(sizeof(t_philo) * data->num_philos);
+	if (!data->philos)
+		return ;
+	threads = malloc(sizeof(pthread_t) * data->num_philos);
+	if (!threads)
+	{
+		free(data->philos);
+		return ;
+	}
+	create_philo_threads(data, threads);
 	if (pthread_create(&monitor, NULL, monitor_routine, data) != 0)
 		safe_print_msg(data, "pthread_create for monitor failed");
 	pthread_join(monitor, NULL);
-	for (i = 0; i < data->num_philos; i++)
-	{
-		pthread_join(threads[i], NULL);
-	}
+	join_philo_threads(data, threads);
 	free(threads);
 	free(data->philos);
 }
 
-/* 初期データの設定 */
+/*
+** create_philos_threads:
+**   Create philosopher and monitor threads.
+*/
+void	create_philos_threads(t_data *data)
+{
+	if (data->num_philos == 1)
+		create_single_philo(data);
+	else
+		create_multiple_philos(data);
+}
+
+static int	validate_args(char **av)
+{
+	int	arg1;
+	int	arg2;
+	int	arg3;
+	int	arg4;
+
+	arg1 = ft_atoi(av[1]);
+	arg2 = ft_atoi(av[2]);
+	arg3 = ft_atoi(av[3]);
+	arg4 = ft_atoi(av[4]);
+	if (arg1 <= 0 || arg2 <= 0 || arg3 <= 0 || arg4 <= 0)
+	{
+		printf("Error: invalid argument\n");
+		return (0);
+	}
+	if (av[5] && ft_atoi(av[5]) <= 0)
+	{
+		printf("Error: invalid argument\n");
+		return (0);
+	}
+	return (1);
+}
+
+/*
+** init_data:
+**   Initialize simulation data.
+*/
 bool	init_data(t_data *data, char **av)
 {
 	struct timeval	tv;
 
+	if (!validate_args(av))
+		return (false);
 	data->num_philos = ft_atoi(av[1]);
 	data->time_to_die = ft_atoi(av[2]);
 	data->time_to_eat = ft_atoi(av[3]);
 	data->time_to_sleep = ft_atoi(av[4]);
-	if (data->num_philos <= 0 || data->time_to_die <= 0
-		|| data->time_to_eat <= 0 || data->time_to_sleep <= 0)
-	{
-		printf("Error: invalid argument\n");
-		return (false);
-	}
 	if (av[5])
-	{
 		data->num_times_eat = ft_atoi(av[5]);
-		if (data->num_times_eat <= 0)
-		{
-			printf("Error: invalid argument\n");
-			return (false);
-		}
-	}
 	else
 		data->num_times_eat = -1;
 	gettimeofday(&tv, NULL);
@@ -355,25 +504,33 @@ bool	init_data(t_data *data, char **av)
 	return (true);
 }
 
-/* forks と各ミューテックスの初期化 */
-bool	init_forks(t_data *data)
+/*
+** init_fork_mutexes:
+**   Initialize fork mutexes.
+*/
+static bool	init_fork_mutexes(t_data *data)
 {
 	int	i;
 
-	data->forks = malloc(sizeof(pthread_mutex_t) * data->num_philos);
-	if (!data->forks)
-	{
-		printf("Failed to allocate forks\n");
-		return (false);
-	}
-	for (i = 0; i < data->num_philos; i++)
+	i = 0;
+	while (i < data->num_philos)
 	{
 		if (pthread_mutex_init(&data->forks[i], NULL) != 0)
 		{
 			printf("Failed to initialize fork mutex\n");
 			return (false);
 		}
+		i++;
 	}
+	return (true);
+}
+
+/*
+** init_other_mutexes:
+**   Initialize other mutexes (excluding print_mutex).
+*/
+static bool	init_other_mutexes(t_data *data)
+{
 	if (pthread_mutex_init(&data->meal_mutex, NULL) != 0)
 	{
 		printf("Failed to initialize meal mutex\n");
@@ -389,15 +546,32 @@ bool	init_forks(t_data *data)
 		printf("Failed to initialize stop mutex\n");
 		return (false);
 	}
-	if (pthread_mutex_init(&data->print_mutex, NULL) != 0)
-	{
-		printf("Failed to initialize print mutex\n");
-		return (false);
-	}
 	return (true);
 }
 
-/* シミュレーション開始 */
+/*
+** init_forks:
+**   Initialize fork and other mutexes.
+*/
+bool	init_forks(t_data *data)
+{
+	data->forks = malloc(sizeof(pthread_mutex_t) * data->num_philos);
+	if (!data->forks)
+	{
+		printf("Failed to allocate forks\n");
+		return (false);
+	}
+	if (!init_fork_mutexes(data))
+		return (false);
+	if (!init_other_mutexes(data))
+		return (false);
+	return (true);
+}
+
+/*
+** philo:
+**   Main simulation execution.
+*/
 int	philo(char **av)
 {
 	t_data	data;
@@ -408,9 +582,11 @@ int	philo(char **av)
 	if (!init_forks(&data))
 		return (1);
 	create_philos_threads(&data);
-	for (i = 0; i < data.num_philos; i++)
+	i = 0;
+	while (i < data.num_philos)
 	{
 		pthread_mutex_destroy(&data.forks[i]);
+		i++;
 	}
 	pthread_mutex_destroy(&data.meal_mutex);
 	pthread_mutex_destroy(&data.finish_mutex);
@@ -420,13 +596,19 @@ int	philo(char **av)
 	return (0);
 }
 
+/*
+** main:
+**   Program entry point.
+*/
 int	main(int ac, char **av)
 {
 	if (ac == 5 || ac == 6)
 		return (philo(av));
 	else
 	{
-		printf("Usage: ./philo number_of_philosophers time_to_die time_to_eat time_to_sleep [number_of_times_each_philosopher_must_eat]\n");
+		printf("Usage: ./philo number_of_philosophers time_to_die ");
+		printf("time_to_eat time_to_sleep ");
+		printf("[number_of_times_each_philosopher_must_eat]\n");
 		return (1);
 	}
 }

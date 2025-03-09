@@ -52,10 +52,11 @@ int	main(void)
 	// ミューテックスの初期化
 	pthread_mutex_init(&data.lock, NULL);
 
-	pthread_t t1, t2;
+	pthread_t t1,
+		t2 =
 
-	// joinable スレッドを作成（終了を待つ）
-	pthread_create(&t1, NULL, joinableThreadFunc, &data);
+			// joinable スレッドを作成（終了を待つ）
+		pthread_create(&t1, NULL, joinableThreadFunc, &data);
 	// detached スレッドを作成（終了を待たず自動解放）
 	pthread_create(&t2, NULL, detachedThreadFunc, &data);
 	pthread_detach(t2); // t2 をデタッチ状態に設定
