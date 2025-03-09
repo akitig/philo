@@ -6,13 +6,63 @@
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 14:59:40 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/09 15:55:10 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/09 17:21:05 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include <../includes/philo.h>
 
-// void	create_philos_threads(void)
+void	*philosopher_routine(void *arg)
+{
+	t_philo	*philo;
+
+	philo = (t_philo *)arg;
+	printf("philo %d start\n", philo->id);
+	while (1)
+	{
+		printf("philosopher %d is thinking\n", philo->id);
+		usleep(500000);
+	}
+	return (NULL);
+}
+
+void	create_philos_threads(t_data data)
+{
+	pthread_t	*threads;
+	t_philo		*philos;
+	int			i;
+
+	printf("num:%d\n", data.num_philos);
+	threads = malloc(sizeof(pthread_t) * data.num_philos);
+	if (!threads)
+		return ;
+	philos = malloc(sizeof(t_philo) * data.num_philos);
+	if (!philos)
+	{
+		free(threads);
+		return ;
+	}
+	i = 0;
+	while (i < data.num_philos)
+	{
+		philos[i].id = i + 1;
+		philos[i].data = &data;
+		if (pthread_create(&threads[i], NULL, philosopher_routine,
+				(void *)&philos[i]) != 0)
+		{
+			printf("pthread_create failed");
+		}
+		i++;
+	}
+	i = 0;
+	while (i < data.num_philos)
+	{
+		pthread_join(threads[i], NULL);
+		i++;
+	}
+	free(threads);
+	free(philos);
+}
 
 bool	init_data(t_data *data, char **av)
 {
@@ -44,7 +94,7 @@ int	philo(char **av)
 	if (init_mutex(&mutex))
 		return (1);
 	printf("num_philos :%d\n", data.num_philos);
-	// create_philos_threads(data);
+	create_philos_threads(data);
 	pthread_mutex_destroy(&mutex.lock);
 	return (0);
 }
@@ -52,7 +102,6 @@ int	philo(char **av)
 // ./philo number_of_philosophers time_to_die time_to_eat time_to_sleep [number_of_times_each_philosopher_must_eat]
 int	main(int ac, char **av)
 {
-	(void)av;
 	if (ac == 5)
 	{
 		printf("philo must loop infinity\n");

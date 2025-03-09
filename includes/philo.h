@@ -6,7 +6,7 @@
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 15:01:23 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/09 16:01:23 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/09 17:21:32 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,6 +19,7 @@
 # include <stdbool.h>
 # include <stdio.h>
 # include <stdlib.h>
+# include <unistd.h>
 
 typedef struct s_mutex
 {
@@ -35,6 +36,13 @@ typedef struct s_data
 	int				time_to_sleep;
 	int				num_times_eat;
 }					t_data;
+
+typedef struct s_philo
+{
+	int				id;
+	t_data			*data;
+
+}					t_philo;
 
 // ft_is.c
 int					ft_isdigit(int c);
