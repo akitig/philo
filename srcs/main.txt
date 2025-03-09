@@ -6,7 +6,7 @@
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 14:59:40 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/09 22:54:49 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/09 22:01:33 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,7 +18,7 @@
 
 /*
  * simulation_running:
- *    stop_mutex をロックして simulation_stop フラグを確認し、
+ *    stop_mutex をロックして simulation_stop フラグをチェックし、
  *    シミュレーションが継続中なら 1 を返す。
  */
 static int	simulation_running(t_data *data)
@@ -33,18 +33,13 @@ static int	simulation_running(t_data *data)
 
 /*
  * safe_print:
- *    print_mutex をロックし、simulation_stop がセットされていなければ
- *    指定のフォーマットで出力する。
+ *    print_mutex で保護し、simulation_stop がセットされていなければ
+ *    フォーマット付きで出力する。
  */
 void	safe_print(t_data *data, const char *format, long time, int id)
 {
-	int	stop;
-
 	pthread_mutex_lock(&data->print_mutex);
-	pthread_mutex_lock(&data->stop_mutex);
-	stop = data->simulation_stop;
-	pthread_mutex_unlock(&data->stop_mutex);
-	if (!stop)
+	if (!data->simulation_stop)
 		printf(format, time, id);
 	pthread_mutex_unlock(&data->print_mutex);
 }
@@ -55,54 +50,10 @@ void	safe_print(t_data *data, const char *format, long time, int id)
  */
 void	safe_print_msg(t_data *data, const char *msg)
 {
-	int	stop;
-
 	pthread_mutex_lock(&data->print_mutex);
-	pthread_mutex_lock(&data->stop_mutex);
-	stop = data->simulation_stop;
-	pthread_mutex_unlock(&data->stop_mutex);
-	if (!stop)
+	if (!data->simulation_stop)
 		printf("%s\n", msg);
 	pthread_mutex_unlock(&data->print_mutex);
-}
-
-/*
- * safe_sleep:
- *    指定されたミリ秒だけ、100µs ごとに simulation_stop をチェックしながら待機する。
- *    simulation_stop がセットされた場合、すぐに待機を中断する。
- */
-void	safe_sleep(long msec, t_data *data)
-{
-	long	start_time;
-
-	start_time = get_now_ms(data->start);
-	while ((get_now_ms(data->start) - start_time) < msec)
-	{
-		pthread_mutex_lock(&data->stop_mutex);
-		if (data->simulation_stop)
-		{
-			pthread_mutex_unlock(&data->stop_mutex);
-			return ;
-		}
-		pthread_mutex_unlock(&data->stop_mutex);
-		usleep(100);
-	}
-}
-
-/*
- * try_lock:
- *    指定のミューテックスを、simulation_stop をチェックしながら trylock する。
- *    取得できたら 0 を返す。simulation_stop がセットされたら -1 を返す。
- */
-static int	try_lock_mutex(pthread_mutex_t *mutex, t_data *data)
-{
-	while (pthread_mutex_trylock(mutex) != 0)
-	{
-		if (!simulation_running(data))
-			return (-1);
-		usleep(50); // 50µs ごとに再試行
-	}
-	return (0);
 }
 
 /* 哲学者スレッドのルーチン */
@@ -116,14 +67,14 @@ void	*philosopher_routine(void *arg)
 	data = philo->data;
 	int left, right;
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-	/* 偶数番号の哲学者は初期に短い遅延（例：200µs） */
+	/* 偶数番号の哲学者は初期に1ms遅延させる */
 	if (philo->id % 2 == 0)
 		usleep(200);
 	if (data->num_philos == 1)
 	{
 		timestamp = get_now_ms(data->start);
 		safe_print(data, "%ld %d has taken a fork\n", timestamp, philo->id);
-		safe_sleep(data->time_to_die, data);
+		usleep(data->time_to_die * 1000);
 		timestamp = get_now_ms(data->start);
 		safe_print(data, "%ld %d died\n", timestamp, philo->id);
 		pthread_mutex_lock(&data->stop_mutex);
@@ -139,29 +90,19 @@ void	*philosopher_routine(void *arg)
 		safe_print(data, "%ld %d is thinking\n", timestamp, philo->id);
 		if (philo->id % 2 == 1)
 		{
-			if (try_lock_mutex(&data->forks[left], data) < 0)
-				break ;
+			pthread_mutex_lock(&data->forks[left]);
 			safe_print(data, "%ld %d has taken a fork\n",
 				get_now_ms(data->start), philo->id);
-			if (try_lock_mutex(&data->forks[right], data) < 0)
-			{
-				pthread_mutex_unlock(&data->forks[left]);
-				break ;
-			}
+			pthread_mutex_lock(&data->forks[right]);
 			safe_print(data, "%ld %d has taken a fork\n",
 				get_now_ms(data->start), philo->id);
 		}
 		else
 		{
-			if (try_lock_mutex(&data->forks[right], data) < 0)
-				break ;
+			pthread_mutex_lock(&data->forks[right]);
 			safe_print(data, "%ld %d has taken a fork\n",
 				get_now_ms(data->start), philo->id);
-			if (try_lock_mutex(&data->forks[left], data) < 0)
-			{
-				pthread_mutex_unlock(&data->forks[right]);
-				break ;
-			}
+			pthread_mutex_lock(&data->forks[left]);
 			safe_print(data, "%ld %d has taken a fork\n",
 				get_now_ms(data->start), philo->id);
 		}
@@ -172,13 +113,9 @@ void	*philosopher_routine(void *arg)
 		pthread_mutex_unlock(&data->meal_mutex);
 		timestamp = get_now_ms(data->start);
 		safe_print(data, "%ld %d is eating\n", timestamp, philo->id);
-		safe_sleep(data->time_to_eat, data);
-		if (!simulation_running(data))
-		{
-			pthread_mutex_unlock(&data->forks[left]);
-			pthread_mutex_unlock(&data->forks[right]);
-			break ;
-		}
+		/* 食事は usleep() で行い、 overhead を最小限にする */
+		usleep(data->time_to_eat * 1000);
+		/* 食事終了：is_eating を 0 に設定 */
 		pthread_mutex_lock(&data->meal_mutex);
 		philo->is_eating = 0;
 		pthread_mutex_unlock(&data->meal_mutex);
@@ -199,9 +136,8 @@ void	*philosopher_routine(void *arg)
 		pthread_mutex_unlock(&data->forks[right]);
 		timestamp = get_now_ms(data->start);
 		safe_print(data, "%ld %d is sleeping\n", timestamp, philo->id);
-		safe_sleep(data->time_to_sleep, data);
-		if (!simulation_running(data))
-			break ;
+		/* 睡眠も usleep() で実施 */
+		usleep(data->time_to_sleep * 1000);
 	}
 	return (NULL);
 }
