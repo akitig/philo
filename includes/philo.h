@@ -1,27 +1,19 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   main.c                                             :+:      :+:    :+:   */
+/*   philo.h                                            :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/03/09 14:59:40 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/09 15:02:34 by akunimot         ###   ########.fr       */
+/*   Created: 2025/03/09 15:01:23 by akunimot          #+#    #+#             */
+/*   Updated: 2025/03/09 15:02:50 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include <../includes/philo.h>
+#ifndef PHILO_H
+# define PHILO_H
 
-// ./philo number_of_philosophers time_to_die time_to_eat time_to_sleep [number_of_times_each_philosopher_must_eat]
-int	main(int ac, char **av)
-{
-	(void)av;
-	if (ac == 5)
-	{
-		printf("philo must loop infinity\n");
-	}
+# include <stdio.h>
+# include <stdlib.h>
 
-	else
-		printf("num of args = KO\n");
-	return (0);
-}
+#endif
