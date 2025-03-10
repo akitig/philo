@@ -6,7 +6,7 @@
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 15:01:23 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/10 12:05:46 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/10 12:19:11 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -69,6 +69,10 @@ int						philo(char **av);
 bool					init_data(t_data *data, char **av);
 bool					init_forks(t_data *data);
 
+/* threads_create_helper.c */
+void					create_single_thread(t_data *data);
+void					create_multiple_philo(t_data *data);
+
 /* threads_create.c */
 void					create_philos_threads(t_data *data);
 
@@ -91,6 +95,7 @@ void					*monitor_routine(void *arg);
 int						take_forks_helper(t_philo *philo, int left, int right);
 void					release_forks_helper(t_data *data, int left, int right);
 int						check_death_helper(t_data *data);
+void					*single_philo_wrapper(void *arg);
 
 /* utils.c */
 int						simulation_running(t_data *data);

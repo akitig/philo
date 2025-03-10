@@ -6,7 +6,7 @@
 #    By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2025/03/09 14:59:44 by akunimot          #+#    #+#              #
-#    Updated: 2025/03/10 12:03:16 by akunimot         ###   ########.fr        #
+#    Updated: 2025/03/10 12:21:00 by akunimot         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -24,6 +24,7 @@ SRCS         = $(SRC_DIR)/main.c \
 				$(SRC_DIR)/init.c \
 				$(SRC_DIR)/philo.c \
 				$(SRC_DIR)/threads_create.c \
+				$(SRC_DIR)/threads_create_helpers.c \
 				$(SRC_DIR)/threads_helpers.c \
 				$(SRC_DIR)/threads_routine_helpers.c \
 				$(SRC_DIR)/threads_routine.c \
