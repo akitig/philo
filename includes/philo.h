@@ -6,7 +6,7 @@
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 15:01:23 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/10 11:42:28 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/10 12:05:46 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -62,13 +62,15 @@ int						ft_atoi(const char *str);
 /* timers.c */
 long					get_now_ms(struct timeval start);
 
-
 /* philo.c */
 int						philo(char **av);
 
 /* init.c */
 bool					init_data(t_data *data, char **av);
 bool					init_forks(t_data *data);
+
+/* threads_create.c */
+void					create_philos_threads(t_data *data);
 
 /* threads_helpers.c */
 int						take_forks(t_philo *philo, int left, int right);
@@ -89,4 +91,13 @@ void					*monitor_routine(void *arg);
 int						take_forks_helper(t_philo *philo, int left, int right);
 void					release_forks_helper(t_data *data, int left, int right);
 int						check_death_helper(t_data *data);
+
+/* utils.c */
+int						simulation_running(t_data *data);
+void					safe_print(t_data *data, const char *format, long time,
+							int id);
+void					safe_print_msg(t_data *data, const char *msg);
+void					safe_sleep(long msec, t_data *data);
+int						try_lock_mutex(pthread_mutex_t *mutex, t_data *data);
+
 #endif

@@ -6,7 +6,7 @@
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 15:00:00 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/10 11:45:17 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/10 12:08:17 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -31,7 +31,7 @@ static void	cleanup_data(t_data *data)
 
 int	philo(char **av)
 {
-	t_data data;
+	t_data	data;
 
 	if (!init_data(&data, av))
 		return (1);

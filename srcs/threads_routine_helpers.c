@@ -1,16 +1,32 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   threads_routine_helper.c                           :+:      :+:    :+:   */
+/*   threads_routine_helpers.c                          :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 15:30:00 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/10 11:26:02 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/10 12:07:42 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/philo.h"
+
+static void	check_finish(t_philo *philo)
+{
+	t_data	*data;
+
+	data = philo->data;
+	pthread_mutex_lock(&data->finish_mutex);
+	data->finished_count++;
+	if (data->finished_count == data->num_philos)
+	{
+		pthread_mutex_lock(&data->stop_mutex);
+		data->simulation_stop = 1;
+		pthread_mutex_unlock(&data->stop_mutex);
+	}
+	pthread_mutex_unlock(&data->finish_mutex);
+}
 
 /*
 	Handle single philosopher case.
