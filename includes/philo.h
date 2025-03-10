@@ -6,7 +6,7 @@
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 15:01:23 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/10 12:19:11 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/10 12:49:47 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -46,7 +46,6 @@ typedef struct s_data
 	pthread_mutex_t		stop_mutex;
 	pthread_mutex_t		finish_mutex;
 	pthread_mutex_t		print_mutex;
-
 	t_philo				*philos;
 	int					simulation_stop;
 	int					finished_count;

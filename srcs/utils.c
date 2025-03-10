@@ -6,7 +6,7 @@
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 15:40:00 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/10 11:14:02 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/10 12:51:22 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -66,13 +66,20 @@ void	safe_sleep(long msec, t_data *data)
 	}
 }
 
+// int	try_lock_mutex(pthread_mutex_t *mutex, t_data *data)
+// {
+// 	// while (pthread_mutex_trylock(mutex) != 0)
+// 	// {
+// 	// 	if (!simulation_running(data))
+// 	// 		return (-1);
+// 	// 	usleep(50);
+// 	// }
+// 	// return (0);
+
+// }
 int	try_lock_mutex(pthread_mutex_t *mutex, t_data *data)
 {
-	while (pthread_mutex_trylock(mutex) != 0)
-	{
-		if (!simulation_running(data))
-			return (-1);
-		usleep(50);
-	}
+	(void)data;
+	pthread_mutex_lock(mutex);
 	return (0);
 }
