@@ -6,12 +6,24 @@
 /*   By: akunimot <akitig24@gmail.com>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/03/09 17:37:48 by akunimot          #+#    #+#             */
-/*   Updated: 2025/03/09 17:43:26 by akunimot         ###   ########.fr       */
+/*   Updated: 2025/03/10 11:36:23 by akunimot         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include <../includes/philo.h>
 
+long	get_now_ms(struct timeval start)
+{
+	struct timeval	now;
+	long			sec;
+	long			usec;
+
+	gettimeofday(&now, NULL);
+	sec = now.tv_sec - start.tv_sec;
+	usec = now.tv_usec - start.tv_usec;
+	return (sec * 1000 + usec / 1000);
+}
+/*
 size_t	ft_strlen(const char *str)
 {
 	size_t	count;
@@ -101,25 +113,17 @@ long	ft_atol(const char *str)
 	return (result * sign);
 }
 
-long	get_now_ms(struct timeval start)
-{
-	struct timeval	now;
 
-	long sec, usec;
-	gettimeofday(&now, NULL);
-	sec = now.tv_sec - start.tv_sec;
-	usec = now.tv_usec - start.tv_usec;
-	return (sec * 1000 + usec / 1000);
-}
 
 void	get_right_now_ms(long next_time)
 {
-	struct timeval start;
-	gettimeofday(&start, NULL);
+	struct timeval	start;
+	char			*time_str;
 
+	gettimeofday(&start, NULL);
 	while (get_now_ms(start) < next_time)
 		usleep(1000);
-	char *time_str = ft_itoa((int)next_time);
+	time_str = ft_itoa((int)next_time);
 	if (time_str)
 	{
 		write(1, time_str, ft_strlen(time_str));
@@ -127,3 +131,4 @@ void	get_right_now_ms(long next_time)
 		free(time_str);
 	}
 }
+	*/
